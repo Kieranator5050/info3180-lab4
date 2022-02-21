@@ -4,10 +4,11 @@ Jinja2 Documentation:    http://jinja.pocoo.org/2/documentation/
 Werkzeug Documentation:  http://werkzeug.pocoo.org/documentation/
 This file creates your application.
 """
+from ast import walk
 from distutils.log import Log
 import os
 from app import app, Config
-from flask import render_template, request, redirect, url_for, flash, session, abort
+from flask import render_template, request, redirect, send_from_directory, url_for, flash, session, abort
 from werkzeug.utils import secure_filename
 from app.forms import UploadForm
 
@@ -30,12 +31,11 @@ def about():
 
 @app.route('/upload', methods=['POST', 'GET'])
 def upload():
-    #if not session.get('logged_in'):
-    #    abort(401)
+    if not session.get('logged_in'):
+        abort(401)
 
     # Instantiate your form class
     U_form = UploadForm()
-    config = Config()
 
     # Validate file upload on submit
     if request.method == 'POST':
@@ -43,7 +43,7 @@ def upload():
             # Get file data and save to your uploads folder
             file = request.files['img_file']
             filename = secure_filename(file.filename)
-            file.save(os.path.join(config.UPLOAD_FOLDER,filename))
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'],filename))
 
             flash('File Saved', 'success')
             return redirect(url_for('home'))
@@ -52,6 +52,24 @@ def upload():
         return render_template('upload.html', form=U_form)
 
     return redirect(url_for('home'))
+
+#Exercise 2
+def get_uploaded_images():
+    imgPaths = []
+    for subdir, dirs, files in os.walk(app.config['UPLOAD_FOLDER']):
+        imgPaths = files
+    imgPaths.pop(0)
+    return imgPaths
+
+@app.route('/files')
+def files():
+    if not session.get('logged_in'):
+        abort(401)
+    return render_template('files.html', files=get_uploaded_images())
+
+@app.route('/uploads/<filename>')
+def get_image(filename):
+    return send_from_directory('.'+app.config['UPLOAD_FOLDER'],filename)
 
 
 @app.route('/login', methods=['POST', 'GET'])
@@ -65,7 +83,7 @@ def login():
             
             flash('You were logged in', 'success')
             return redirect(url_for('upload'))
-    return render_template('login.html', error=error)
+    return render_template('login.html', error=error, form=UploadForm())
 
 
 @app.route('/logout')
